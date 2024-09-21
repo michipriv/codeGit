@@ -1,0 +1,98 @@
+# Filename: modules/github_repo_manager.py
+
+import os
+import shutil
+import subprocess
+from modules.github_api import GitHubAPI
+from modules.git_operations import GitOperations
+from github import GithubException
+
+
+class GitHubRepoManager:
+    """
+    Verwaltet die Interaktion mit dem GitHub-Repository.
+    """
+
+    def __init__(self, token, repo_name):
+        """
+        Initialisiert den GitHubRepoManager.
+
+        Args:
+            token (str): Der GitHub-Token für die Authentifizierung.
+            repo_name (str): Der Name des Repositories.
+        """
+        self.token = token
+        self.repo_name = repo_name
+        self.github_api = GitHubAPI(token)
+        self.repo_url = (
+            f"https://github.com/{self.github_api.user.login}/{repo_name}.git"
+        )
+        self.git_ops = GitOperations(token, self.repo_url)
+
+    # ... (andere Methoden bleiben unverändert) ...
+
+    def restore_version(self, directory_path, version_identifier):
+        """
+        Stellt die angegebene Version wieder her und aktualisiert den master-Branch.
+
+        Args:
+            directory_path (str): Der Pfad zum Verzeichnis.
+            version_identifier (str): Die Versionsnummer oder der Commit-Hash.
+        """
+        # Überprüfen, ob das Verzeichnis existiert und ggf. sichern
+        if os.path.exists(directory_path):
+            backup_path = f"{directory_path}.bak"
+            try:
+                if os.path.exists(backup_path):
+                    shutil.rmtree(backup_path)
+                os.rename(directory_path, backup_path)
+                print(f"Bestehendes Verzeichnis wurde nach {backup_path} verschoben.")
+            except Exception as e:
+                print(f"Fehler beim Verschieben des Verzeichnisses: {e}")
+                return
+        else:
+            print(
+                f"Verzeichnis {directory_path} existiert nicht. Es wird neu erstellt."
+            )
+
+        # Klonen des Repositories
+        self.clone_latest_version(directory_path)
+
+        os.chdir(directory_path)
+
+        # Überprüfen, ob es ein Git-Repository ist
+        if not os.path.exists(".git"):
+            print("Kein Git-Repository vorhanden.")
+            return
+
+        # Bestimmen des Commit-Hashes
+        if version_identifier.isdigit():
+            commit_hash = self.get_commit_hash_by_version_number(
+                int(version_identifier)
+            )
+            if not commit_hash:
+                print(f"Keine Version mit der Nummer {version_identifier} gefunden.")
+                return
+        else:
+            commit_hash = version_identifier
+
+        try:
+            # Erstellen oder Wechseln zum 'master'-Branch
+            self.git_ops.create_or_checkout_branch("master")
+
+            # Setze den 'master'-Branch hart auf den gewünschten Commit zurück
+            self.git_ops.reset_hard(commit_hash)
+
+            # Force-Push des 'master'-Branches zum Remote-Repository
+            self.git_ops.force_push("master")
+
+            print(
+                f"Version {version_identifier} wurde erfolgreich wiederhergestellt und zum 'master'-Branch gepusht."
+            )
+
+        except subprocess.CalledProcessError as e:
+            print(f"Fehler beim Wiederherstellen der Version: {e}")
+        except Exception as e:
+            print(f"Allgemeiner Fehler: {e}")
+
+    # ... (restliche Methoden bleiben unverändert) ...

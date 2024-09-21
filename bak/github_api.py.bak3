@@ -1,0 +1,87 @@
+# Filename: modules/github_api.py
+
+import requests
+
+
+class GitHubAPI:
+    """
+    Verwaltet die Interaktion mit der GitHub-API.
+    """
+
+    GITHUB_API_URL = "https://api.github.com"
+
+    def __init__(self, token, username):
+        """
+        Initialisiert die GitHubAPI.
+
+        Args:
+            token (str): Der GitHub-Token für die Authentifizierung.
+            username (str): Der GitHub-Benutzername.
+        """
+        self.token = token
+        self.username = username
+        self.headers = {
+            "Authorization": f"token {self.token}",
+            "Accept": "application/vnd.github.v3+json",
+        }
+
+    def repository_exists(self, repo_name):
+        """
+        Überprüft, ob ein Repository existiert.
+
+        Args:
+            repo_name (str): Der Name des Repositories.
+
+        Returns:
+            bool: True, wenn das Repository existiert, sonst False.
+        """
+        repo_api_url = f"{self.GITHUB_API_URL}/repos/{self.username}/{repo_name}"
+        response = requests.get(repo_api_url, headers=self.headers)
+        return response.status_code == 200
+
+    def create_repository(self, repo_name):
+        """
+        Erstellt ein neues privates Repository.
+
+        Args:
+            repo_name (str): Der Name des Repositories.
+
+        Returns:
+            bool: True, wenn das Repository erfolgreich erstellt wurde, sonst False.
+        """
+        data = {"name": repo_name, "private": True}
+        response = requests.post(
+            f"{self.GITHUB_API_URL}/user/repos", json=data, headers=self.headers
+        )
+        if response.status_code == 201:
+            return True
+        else:
+            print(
+                f"Fehler beim Erstellen des Repositories: {response.status_code} - {response.json()}"
+            )
+            return False
+
+    def get_commits(self, repo_name):
+        """
+        Ruft die Commits eines Repositories ab.
+
+        Args:
+            repo_name (str): Der Name des Repositories.
+
+        Returns:
+            list: Eine Liste von Commits oder None bei Fehler.
+        """
+        commits_api_url = (
+            f"{self.GITHUB_API_URL}/repos/{self.username}/{repo_name}/commits"
+        )
+        response = requests.get(commits_api_url, headers=self.headers)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            print(
+                f"Fehler beim Abrufen der Commits: {response.status_code} - {response.json()}"
+            )
+            return None
+
+
+# EOF
